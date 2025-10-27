@@ -1,0 +1,65 @@
+name: Outputs Demo
+on:
+    - push
+
+jobs:
+    info:
+        name: Info
+        runs-on: ubuntu-latest
+        outputs:
+            git-sha: ${{ steps.get-sha.outputs.sha }}
+            git-branch: ${{ steps.get-branch.outputs.branch }}
+            commit-message: ${{ steps.get-message.outputs.message }}
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v5
+            - name: Git Commit SHA
+              id: get-sha
+              run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+            - name: Git Branch Name
+              id: get-branch
+              run: echo "branch=$(git rev-parse --abbrev-ref HEAD)" >> $GITHUB_OUTPUT
+            - name: Git Commit Message
+              id: get-message
+              run: echo "message=$(git log -1 --pretty=%B)" >> $GITHUB_OUTPUT
+    
+    build:
+        name: Build
+        runs-on: ubuntu-latest
+        needs: info
+        outputs:
+            build-report: ${{ steps.build-report.outputs.report }}
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v5
+            - name: Install dependencies
+              run: npm install
+            - name: Build project
+              run: npm run build
+            - name: Print Build Info
+              run: echo "Building commit ${{ needs.info.outputs.git-sha }} on branch ${{ needs.info.outputs.git-branch }}"
+            - name: Generate Build Report
+              id: build-report
+              run: |
+                {
+                    echo "report<<EOF"
+                    echo "Build Report"
+                    echo "============"
+                    node --version
+                    npm --version
+                    echo "Successfully Built Commit: ${{ needs.info.outputs.git-sha }}"
+                    echo "EOF"
+                } >> $GITHUB_OUTPUT
+    
+    summary:
+        name: Summary
+        runs-on: ubuntu-latest
+        needs: [info, build]
+        steps:
+            - name: Print Summary
+              run: |
+                  echo "Build Summary:"
+                  echo "Commit SHA: ${{ needs.info.outputs.git-sha }}"
+                  echo "Branch Name: ${{ needs.info.outputs.git-branch }}"
+                  echo "Commit Message: ${{ needs.info.outputs.commit-message }}"
+                  echo "Build Report: ${{ needs.build.outputs.build-report }}"
